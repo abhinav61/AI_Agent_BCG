@@ -16,26 +16,40 @@ class AIDocumentAgent:
         # OpenRouter API configuration
         self.api_key = os.getenv('OPENROUTER_API_KEY')
         
-        # Initialize LangChain ChatOpenAI with OpenRouter
-        self.llm = ChatOpenAI(
-            model="meta-llama/llama-3.1-8b-instruct:free",
-            openai_api_key=self.api_key,
-            openai_api_base="https://openrouter.ai/api/v1",
-            temperature=0.7,
-            max_tokens=800,
-            model_kwargs={
-                "headers": {
-                    "HTTP-Referer": os.getenv('FRONTEND_URL', 'https://ai-agent-bcg-1-front.onrender.com'),
-                    "X-Title": "TraqCheck HR System"
-                }
-            }
-        )
+        print(f"Initializing AI Agent...")
+        print(f"OpenRouter API Key present: {'Yes' if self.api_key else 'No'}")
+        
+        # Initialize LangChain ChatOpenAI with OpenRouter only if API key is present
+        self.llm = None
+        if self.api_key:
+            try:
+                self.llm = ChatOpenAI(
+                    model="meta-llama/llama-3.1-8b-instruct:free",
+                    openai_api_key=self.api_key,
+                    openai_api_base="https://openrouter.ai/api/v1",
+                    temperature=0.7,
+                    max_tokens=800,
+                    model_kwargs={
+                        "headers": {
+                            "HTTP-Referer": os.getenv('FRONTEND_URL', 'https://ai-agent-bcg-1-front.onrender.com'),
+                            "X-Title": "TraqCheck HR System"
+                        }
+                    }
+                )
+                print("✓ LangChain ChatOpenAI initialized successfully")
+            except Exception as e:
+                print(f"✗ Failed to initialize LangChain: {e}")
+        else:
+            print("✗ OpenRouter API Key not found - AI generation will use fallback template")
         
         # Email configuration from .env
         self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('SMTP_PORT', 587))
         self.sender_email = os.getenv('SENDER_EMAIL')
         self.sender_password = os.getenv('SENDER_PASSWORD')
+        
+        print(f"Email config - Server: {self.smtp_server}, Port: {self.smtp_port}")
+        print(f"Sender email: {self.sender_email if self.sender_email else 'Not configured'}")
         
         # Create LangChain prompt template
         self.prompt_template = ChatPromptTemplate.from_messages([
@@ -62,6 +76,11 @@ Generate only the email body, no subject line.""")
     
     def generate_document_request_email(self, candidate_data):
         """Use LangChain to generate a personalized document request email"""
+        
+        # If LangChain is not initialized, use fallback immediately
+        if not self.llm:
+            print("LangChain not available, using fallback template")
+            return self._get_fallback_template(candidate_data)
         
         try:
             print(f"Generating email using LangChain for {candidate_data.get('name')}...")
