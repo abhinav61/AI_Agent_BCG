@@ -177,15 +177,18 @@ TraqCheck"""
             html_part = MIMEText(html_body, "html")
             message.attach(html_part)
             
-            # Send email
+            # Send email with timeout to prevent hanging
             print(f"Connecting to {self.smtp_server}:{self.smtp_port}...")
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30)
+            try:
                 print(f"Starting TLS...")
                 server.starttls()
                 print(f"Logging in...")
                 server.login(self.sender_email, self.sender_password)
                 print(f"Sending email...")
                 server.send_message(message)
+            finally:
+                server.quit()
             
             print(f"Email sent successfully from {self.sender_email} to {recipient_email}")
             return True

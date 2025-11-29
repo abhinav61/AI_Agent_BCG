@@ -15,12 +15,39 @@ app = Flask(__name__)
 # Enable CORS for all origins - allows any domain to access the API
 CORS(app)
 
+@app.before_request
+def handle_preflight():
+    """Handle CORS preflight requests"""
+    if request.method == "OPTIONS":
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
+        return response
+
+@app.after_request
+def after_request(response):
+    """Ensure CORS headers are present on all responses, including errors"""
+    # CORS should already be handled by Flask-CORS, but this ensures it's always present
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Global error handler to ensure CORS headers are present on error"""
     # pass through HTTP errors
     if isinstance(e, HTTPException):
-        return e
+        response = jsonify({
+            "error": e.name,
+            "message": str(e)
+        })
+        response.status_code = e.code
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
 
     # now you're handling non-HTTP exceptions only
     print(f"Unhandled Exception: {str(e)}")
@@ -32,6 +59,9 @@ def handle_exception(e):
         "message": str(e)
     })
     response.status_code = 500
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
 # Initialize AI Agent and Document Verifier
@@ -450,30 +480,52 @@ def request_documents(candidate_id):
         print(f"Processing document request for candidate: {candidate_data}")
         
         # Use AI agent to generate and send email
-        result = ai_agent.request_documents(candidate_data)
+        # Wrap in try-except to handle any errors gracefully
+        try:
+            result = ai_agent.request_documents(candidate_data)
+            print(f"AI Agent result: {result}")
+        except Exception as ai_error:
+            print(f"Error in AI agent: {str(ai_error)}")
+            import traceback
+            traceback.print_exc()
+            # Still return a response even if AI agent fails
+            result = {
+                'success': False,
+                'error': str(ai_error),
+                'message': 'Failed to generate document request',
+                'email_body': None
+            }
         
-        print(f"AI Agent result: {result}")
-        
-        if result['success']:
-            # Log the request in database
-            cursor.execute('''
-                INSERT INTO document_requests (candidate_id, status, email_body)
-                VALUES (%s, 'sent', %s)
-            ''', (candidate_id, result['email_body']))
-            
-            # Update candidate status to Pending (Documents Requested)
-            cursor.execute('''
-                UPDATE candidates 
-                SET extraction_status = 'Pending'
-                WHERE id = %s
-            ''', (candidate_id,))
-            
-            conn.commit()
+        # Log the request in database even if email sending failed
+        # (email generation might have succeeded even if sending failed)
+        if result.get('email_body'):
+            try:
+                cursor.execute('''
+                    INSERT INTO document_requests (candidate_id, status, email_body)
+                    VALUES (%s, %s, %s)
+                ''', (candidate_id, 'sent' if result.get('success') else 'failed', result['email_body']))
+                
+                # Update candidate status to Pending (Documents Requested)
+                cursor.execute('''
+                    UPDATE candidates 
+                    SET extraction_status = 'Pending'
+                    WHERE id = %s
+                ''', (candidate_id,))
+                
+                conn.commit()
+            except Exception as db_error:
+                print(f"Database error: {str(db_error)}")
+                # Don't fail the request if DB logging fails
         
         if conn:
             conn.close()
         
-        return jsonify(result), 200
+        # Always return a response with CORS headers
+        response = jsonify(result)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response, 200
         
     except Exception as e:
         print(f"Error in request_documents: {str(e)}")
@@ -481,11 +533,16 @@ def request_documents(candidate_id):
         traceback.print_exc()
         if conn:
             conn.close()
-        return jsonify({
+        response = jsonify({
             'success': False,
             'error': str(e),
             'message': 'Failed to process document request'
-        }), 500
+        })
+        response.status_code = 500
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
 
 @app.route('/api/candidates/<int:candidate_id>/submit-documents', methods=['POST'])
 def submit_documents(candidate_id):
