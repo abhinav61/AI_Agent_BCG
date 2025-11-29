@@ -12,31 +12,23 @@ from parsers.document_verifier import DocumentVerifier
 from ai_agent import AIDocumentAgent
 
 app = Flask(__name__)
-# Enable CORS for all origins - allows any domain to access the API
-CORS(app)
 
-@app.before_request
-def handle_preflight():
-    """Handle CORS preflight requests"""
-    if request.method == "OPTIONS":
-        response = jsonify({})
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization")
-        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
-        return response
-
-@app.after_request
-def after_request(response):
-    """Ensure CORS headers are present on all responses, including errors"""
-    # CORS should already be handled by Flask-CORS, but this ensures it's always present
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+# CORS Configuration - Allow all origins for Render.com deployment
+# This configuration explicitly allows all origins including https://ai-agent-bcg-1-front.onrender.com
+# Flask-CORS 5.0.0 best practice: use resources with r"/*" pattern to match all routes
+CORS(app, 
+     resources={r"/*": {
+         "origins": "*",
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+         "expose_headers": ["Content-Type", "Authorization"],
+         "max_age": 3600
+     }},
+     supports_credentials=False)  # Must be False when using origins: "*"
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Global error handler to ensure CORS headers are present on error"""
+    """Global error handler - CORS headers are automatically added by Flask-CORS"""
     # pass through HTTP errors
     if isinstance(e, HTTPException):
         response = jsonify({
@@ -44,9 +36,6 @@ def handle_exception(e):
             "message": str(e)
         })
         response.status_code = e.code
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
         return response
 
     # now you're handling non-HTTP exceptions only
@@ -59,9 +48,6 @@ def handle_exception(e):
         "message": str(e)
     })
     response.status_code = 500
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
 # Initialize AI Agent and Document Verifier
@@ -520,12 +506,8 @@ def request_documents(candidate_id):
         if conn:
             conn.close()
         
-        # Always return a response with CORS headers
-        response = jsonify(result)
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        return response, 200
+        # Flask-CORS automatically adds CORS headers to all responses
+        return jsonify(result), 200
         
     except Exception as e:
         print(f"Error in request_documents: {str(e)}")
@@ -533,16 +515,12 @@ def request_documents(candidate_id):
         traceback.print_exc()
         if conn:
             conn.close()
-        response = jsonify({
+        # Flask-CORS automatically adds CORS headers to all responses, including errors
+        return jsonify({
             'success': False,
             'error': str(e),
             'message': 'Failed to process document request'
-        })
-        response.status_code = 500
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        return response
+        }), 500
 
 @app.route('/api/candidates/<int:candidate_id>/submit-documents', methods=['POST'])
 def submit_documents(candidate_id):
@@ -831,10 +809,23 @@ def upload_documents_page(candidate_id):
                          candidate_email=candidate['email'] or '',
                          upload_attempts=candidate['upload_attempts'] or 0)
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
-    """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'message': 'Backend is running'}), 200
+    """Health check endpoint - also tests CORS"""
+    return jsonify({
+        'status': 'healthy', 
+        'message': 'Backend is running',
+        'cors_enabled': True
+    }), 200
+
+@app.route('/api/cors-test', methods=['GET', 'POST', 'OPTIONS'])
+def cors_test():
+    """Test endpoint to verify CORS is working correctly"""
+    return jsonify({
+        'message': 'CORS is working!',
+        'origin': request.headers.get('Origin', 'Not provided'),
+        'method': request.method
+    }), 200
 
 if __name__ == '__main__':
     init_db()
