@@ -11,7 +11,19 @@ from parsers.document_verifier import DocumentVerifier
 from ai_agent import AIDocumentAgent
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for React frontend
+# Enable CORS for React frontend with specific origins
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://ai-agent-bcg-1-front.onrender.com",
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Initialize AI Agent and Document Verifier
 ai_agent = AIDocumentAgent()
