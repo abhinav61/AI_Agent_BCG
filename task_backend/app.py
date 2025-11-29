@@ -13,7 +13,7 @@ from ai_agent import AIDocumentAgent
 
 app = Flask(__name__)
 # Enable CORS for all origins - allows any domain to access the API
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app)
 
 @app.errorhandler(Exception)
 def handle_exception(e):
