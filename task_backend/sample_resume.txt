@@ -1,0 +1,66 @@
+ABHINAV KUMAR
+abhinav.kumar@gmail.com | +91 9876543210 | Mumbai, MH
+
+PROFESSIONAL SUMMARY
+Experienced AI Engineer with 5+ years of expertise in machine learning, deep learning, and natural language processing. Proven track record of developing and deploying scalable AI solutions.
+
+WORK EXPERIENCE
+
+Tech Mahindra
+AI Engineer
+April 2020 - Present
+• Developed and deployed machine learning models for predictive analytics
+• Built NLP systems for customer sentiment analysis processing 10K+ reviews daily
+• Implemented computer vision solutions for automated quality inspection
+• Led a team of 3 junior engineers in AI/ML projects
+
+Infosys Limited
+Software Developer
+June 2018 - March 2020
+• Designed and implemented RESTful APIs using Python and Flask
+• Developed data processing pipelines handling 1TB+ data daily
+• Collaborated with cross-functional teams for system integration
+• Optimized database queries improving performance by 40%
+
+EDUCATION
+
+Bachelor of Technology in Computer Science
+Indian Institute of Technology, Mumbai
+2014 - 2018
+CGPA: 8.5/10
+
+TECHNICAL SKILLS
+• Programming Languages: Python, Java, JavaScript, C++
+• Machine Learning: TensorFlow, PyTorch, Scikit-learn, Keras
+• Cloud Platforms: AWS, Azure, GCP
+• Tools & Frameworks: Docker, Kubernetes, Git, Jenkins
+• Databases: MySQL, MongoDB, PostgreSQL
+• Web Technologies: React, Node.js, Flask, Django
+• DevOps: CI/CD, Agile, Scrum
+
+CERTIFICATIONS
+• AWS Certified Machine Learning - Specialty
+• Google Cloud Professional Data Engineer
+• Microsoft Azure AI Engineer Associate
+
+PROJECTS
+
+Customer Churn Prediction System
+• Built predictive model with 92% accuracy using Random Forest and XGBoost
+• Deployed on AWS with automated retraining pipeline
+• Reduced customer churn by 15% for telecom client
+
+Real-time Object Detection Application
+• Developed using YOLO and TensorFlow for retail analytics
+• Achieved 30 FPS processing on edge devices
+• Improved inventory management accuracy by 25%
+
+LANGUAGES
+• English (Fluent)
+• Hindi (Native)
+• Marathi (Intermediate)
+
+ACHIEVEMENTS
+• Published 2 research papers in AI/ML conferences
+• Winner of company-wide Innovation Challenge 2022
+• Mentored 10+ junior developers and interns

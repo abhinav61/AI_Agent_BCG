@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Documents - TraqCheck</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .candidate-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .candidate-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .candidate-info p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .upload-section {
+            margin-bottom: 25px;
+        }
+
+        .upload-section label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            display: none;
+        }
+
+        .file-btn {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .file-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .file-name {
+            color: #666;
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .file-name.selected {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .requirements {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 25px;
+        }
+
+        .requirements h4 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .requirements ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .requirements li {
+            color: #856404;
+            font-size: 13px;
+            margin-bottom: 5px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .requirements li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: #28a745;
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .progress {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-cloud-upload-alt" style="margin-right: 10px;"></i>Upload Documents</h1>
+            <p style="color: #666; margin-top: 10px;">Please upload your identity documents</p>
+        </div>
+
+        <div class="candidate-info">
+            <h3><i class="fas fa-user" style="margin-right: 8px; color: #667eea;"></i>{{ candidate_name }}</h3>
+            <p><i class="fas fa-envelope" style="margin-right: 8px; color: #666;"></i>{{ candidate_email }}</p>
+        </div>
+
+        <div class="requirements">
+            <h4><i class="fas fa-exclamation-circle" style="margin-right: 8px;"></i>Requirements:</h4>
+            <ul>
+                <li>PAN Card and Aadhaar Card images</li>
+                <li>Image formats: JPG, JPEG, or PNG only</li>
+                <li>Clear and readable photos</li>
+                <li>File size: Max 10MB per file</li>
+            </ul>
+        </div>
+
+        <form id="uploadForm">
+            <div class="upload-section">
+                <label><i class="fas fa-id-card" style="margin-right: 8px;"></i>PAN Card *</label>
+                <div class="file-input-wrapper">
+                    <label for="panCard" class="file-btn"><i class="fas fa-folder-open" style="margin-right: 8px;"></i>Choose File</label>
+                    <input type="file" id="panCard" name="pan_card" accept=".jpg,.jpeg,.png" required>
+                    <span class="file-name" id="panFileName">No file chosen</span>
+                </div>
+            </div>
+
+            <div class="upload-section">
+                <label><i class="fas fa-address-card" style="margin-right: 8px;"></i>Aadhaar Card *</label>
+                <div class="file-input-wrapper">
+                    <label for="aadhaarCard" class="file-btn"><i class="fas fa-folder-open" style="margin-right: 8px;"></i>Choose File</label>
+                    <input type="file" id="aadhaarCard" name="aadhaar_card" accept=".jpg,.jpeg,.png" required>
+                    <span class="file-name" id="aadhaarFileName">No file chosen</span>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                <i class="fas fa-upload" style="margin-right: 8px;"></i>Upload Documents
+            </button>
+
+            <div class="progress" id="progressBar">
+                <div class="progress-bar" id="progressFill">0%</div>
+            </div>
+
+            <div class="status-message" id="statusMessage"></div>
+        </form>
+    </div>
+
+    <script>
+        const candidateId = {{ candidate_id }};
+        const uploadAttempts = {{ upload_attempts }};
+        const panInput = document.getElementById('panCard');
+        const aadhaarInput = document.getElementById('aadhaarCard');
+        const panFileName = document.getElementById('panFileName');
+        const aadhaarFileName = document.getElementById('aadhaarFileName');
+        const form = document.getElementById('uploadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Show remaining attempts
+        if (uploadAttempts > 0) {
+            const remainingAttempts = 3 - uploadAttempts;
+            showStatus(`You have ${remainingAttempts} attempt(s) remaining`, 'error');
+        }
+
+        panInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                panFileName.textContent = this.files[0].name;
+                panFileName.classList.add('selected');
+            }
+        });
+
+        aadhaarInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                aadhaarFileName.textContent = this.files[0].name;
+                aadhaarFileName.classList.add('selected');
+            }
+        });
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!panInput.files.length || !aadhaarInput.files.length) {
+                showStatus('Please select both PAN and Aadhaar card files', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('pan_card', panInput.files[0]);
+            formData.append('aadhaar_card', aadhaarInput.files[0]);
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Uploading...';
+            progressBar.style.display = 'block';
+            statusMessage.style.display = 'none';
+
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 10;
+                if (progress <= 90) {
+                    progressFill.style.width = progress + '%';
+                    progressFill.textContent = progress + '%';
+                }
+            }, 200);
+
+            try {
+                const response = await fetch(`http://localhost:5000/api/candidates/${candidateId}/submit-documents`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+                progressFill.textContent = '100%';
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Success - documents uploaded
+                    showStatus('Documents uploaded successfully! This page will no longer be accessible.', 'success');
+                    
+                    // Disable form after successful submission
+                    panInput.disabled = true;
+                    aadhaarInput.disabled = true;
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Documents Submitted';
+                    
+                    setTimeout(() => {
+                        progressBar.style.display = 'none';
+                    }, 2000);
+                } else {
+                    // Handle specific error cases
+                    if (data.already_submitted) {
+                        showStatus('Documents already submitted. This link is no longer valid.', 'error');
+                        panInput.disabled = true;
+                        aadhaarInput.disabled = true;
+                        submitBtn.disabled = true;
+                    } else if (data.max_attempts_reached) {
+                        showStatus('Maximum upload attempts exceeded. Please contact the administrator.', 'error');
+                        panInput.disabled = true;
+                        aadhaarInput.disabled = true;
+                        submitBtn.disabled = true;
+                    } else if (response.status === 403) {
+                        showStatus(data.error, 'error');
+                        panInput.disabled = true;
+                        aadhaarInput.disabled = true;
+                        submitBtn.disabled = true;
+                    } else {
+                        // Show error with remaining attempts
+                        let errorMsg = data.error || 'Upload failed';
+                        if (data.remaining_attempts !== undefined && data.remaining_attempts > 0) {
+                            errorMsg += `. You have ${data.remaining_attempts} attempt(s) remaining.`;
+                        } else if (data.max_attempts_reached) {
+                            errorMsg = data.error;
+                            panInput.disabled = true;
+                            aadhaarInput.disabled = true;
+                            submitBtn.disabled = true;
+                        }
+                        showStatus(errorMsg, 'error');
+                    }
+                    progressBar.style.display = 'none';
+                }
+            } catch (error) {
+                clearInterval(progressInterval);
+                showStatus('Error: ' + error.message, 'error');
+                progressBar.style.display = 'none';
+            } finally {
+                if (!submitBtn.disabled) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Upload Documents';
+                }
+            }
+        });
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message ' + type;
+            statusMessage.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
