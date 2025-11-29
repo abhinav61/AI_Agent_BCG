@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string, render_template
+from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -12,7 +13,26 @@ from ai_agent import AIDocumentAgent
 
 app = Flask(__name__)
 # Enable CORS for all origins - allows any domain to access the API
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to ensure CORS headers are present on error"""
+    # pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return e
+
+    # now you're handling non-HTTP exceptions only
+    print(f"Unhandled Exception: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    
+    response = jsonify({
+        "error": "Internal Server Error",
+        "message": str(e)
+    })
+    response.status_code = 500
+    return response
 
 # Initialize AI Agent and Document Verifier
 ai_agent = AIDocumentAgent()
