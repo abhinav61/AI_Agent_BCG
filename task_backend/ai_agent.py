@@ -25,7 +25,7 @@ class AIDocumentAgent:
             max_tokens=800,
             model_kwargs={
                 "headers": {
-                    "HTTP-Referer": "http://localhost:3000",
+                    "HTTP-Referer": os.getenv('FRONTEND_URL', 'https://ai-agent-bcg-1-front.onrender.com'),
                     "X-Title": "TraqCheck HR System"
                 }
             }
@@ -68,7 +68,7 @@ Generate only the email body, no subject line.""")
             
             # Create upload link
             candidate_id = candidate_data.get('id')
-            upload_link = f"http://localhost:5000/upload-documents/{candidate_id}"
+            upload_link = f"https://ai-agent-bcg-1-flask.onrender.com/upload-documents/{candidate_id}"
             
             # Use LangChain to generate email with prompt template
             messages = self.prompt_template.format_messages(
@@ -115,7 +115,7 @@ Request PAN Card and Aadhaar Card. Be professional, explain verification needs, 
         name = candidate_data.get('name', 'Candidate')
         position = candidate_data.get('designation', 'the position')
         candidate_id = candidate_data.get('id')
-        upload_link = f"http://localhost:5000/upload-documents/{candidate_id}"
+        upload_link = f"https://ai-agent-bcg-1-flask.onrender.com/upload-documents/{candidate_id}"
         
         return f"""Dear {name},
 
