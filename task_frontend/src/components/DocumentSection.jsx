@@ -53,7 +53,7 @@ const DocumentSection = ({ candidateId, documents, onDocumentsUpdate }) => {
         });
       }, 200);
 
-      const response = await fetch(`http://localhost:5000/api/candidates/${candidateId}/submit-documents`, {
+      const response = await fetch(`https://ai-agent-bcg.onrender.com/api/candidates/${candidateId}/submit-documents`, {
         method: 'POST',
         body: formData,
       });

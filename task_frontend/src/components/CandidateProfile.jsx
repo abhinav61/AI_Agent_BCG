@@ -10,7 +10,7 @@ const CandidateProfile = ({ candidate, onBack, onRequestDocuments }) => {
   const handleRequestDocuments = async () => {
     setIsRequesting(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/candidates/${candidate.id}/request-documents`, {
+      const response = await fetch(`https://ai-agent-bcg.onrender.com/api/candidates/${candidate.id}/request-documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

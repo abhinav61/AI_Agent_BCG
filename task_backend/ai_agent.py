@@ -126,7 +126,7 @@ Please upload the following documents within 7 days:
 2. Aadhaar Card (12 digits - both front and back)
 
 📎 UPLOAD YOUR DOCUMENTS HERE:
-{upload_link}
+<a href=\"{upload_link}\" style=\"color: blue; text-decoration: underline;\">click</a>
 
 Click the link above to access our secure upload portal. The system will automatically verify your documents.
 

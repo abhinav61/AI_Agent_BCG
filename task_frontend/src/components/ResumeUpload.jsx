@@ -63,7 +63,7 @@ const ResumeUpload = ({ onUploadSuccess }) => {
       const formData = new FormData();
       formData.append('resume', file);
       
-      const response = await fetch('http://localhost:5000/api/candidates/upload', {
+      const response = await fetch('https://ai-agent-bcg.onrender.com/api/candidates/upload', {
         method: 'POST',
         body: formData,
       });

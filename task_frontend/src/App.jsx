@@ -17,7 +17,7 @@ function App() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/candidates');
+      const response = await fetch('https://ai-agent-bcg.onrender.com/api/candidates');
       if (response.ok) {
         const data = await response.json();
         setCandidates(data);
@@ -144,7 +144,7 @@ function App() {
   const handleCandidateSelect = async (candidate) => {
     // Fetch full candidate details from backend
     try {
-      const response = await fetch(`http://localhost:5000/api/candidates/${candidate.id}`);
+      const response = await fetch(`https://ai-agent-bcg.onrender.com/api/candidates/${candidate.id}`);
       if (response.ok) {
         const fullCandidate = await response.json();
         setSelectedCandidate(fullCandidate);
