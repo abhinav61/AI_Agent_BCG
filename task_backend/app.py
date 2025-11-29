@@ -11,19 +11,14 @@ from parsers.document_verifier import DocumentVerifier
 from ai_agent import AIDocumentAgent
 
 app = Flask(__name__)
-# Enable CORS for React frontend with specific origins
-CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "https://ai-agent-bcg-1-front.onrender.com",
-            "http://localhost:5173",
-            "http://localhost:3000"
-        ],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
+# Enable CORS for all origins (for production, you can restrict this)
+CORS(app, 
+     origins=["https://ai-agent-bcg-1-front.onrender.com", "http://localhost:5173", "http://localhost:3000"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization", "Accept"],
+     supports_credentials=True,
+     expose_headers=["Content-Type"]
+)
 
 # Initialize AI Agent and Document Verifier
 ai_agent = AIDocumentAgent()
@@ -414,49 +409,69 @@ def get_candidate(candidate_id):
 @app.route('/api/candidates/<int:candidate_id>/request-documents', methods=['POST'])
 def request_documents(candidate_id):
     """AI agent generates and sends personalized document request"""
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    # Get candidate details
-    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
-    candidate = cursor.fetchone()
-    
-    if not candidate:
-        conn.close()
-        return jsonify({'error': 'Candidate not found'}), 404
-    
-    # Convert to dict
-    candidate_data = {
-        'id': candidate['id'],
-        'name': candidate['name'],
-        'email': candidate['email'],
-        'phone': candidate['phone'],
-        'company': candidate['company'],
-        'designation': candidate['designation']
-    }
-    
-    # Use AI agent to generate and send email
-    result = ai_agent.request_documents(candidate_data)
-    
-    if result['success']:
-        # Log the request in database
-        cursor.execute('''
-            INSERT INTO document_requests (candidate_id, status, email_body)
-            VALUES (%s, 'sent', %s)
-        ''', (candidate_id, result['email_body']))
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Update candidate status to Pending (Documents Requested)
-        cursor.execute('''
-            UPDATE candidates 
-            SET extraction_status = 'Pending'
-            WHERE id = %s
-        ''', (candidate_id,))
+        # Get candidate details
+        cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
+        candidate = cursor.fetchone()
         
-        conn.commit()
-    
-    conn.close()
-    
-    return jsonify(result), 200
+        if not candidate:
+            if conn:
+                conn.close()
+            return jsonify({'error': 'Candidate not found'}), 404
+        
+        # Convert to dict
+        candidate_data = {
+            'id': candidate['id'],
+            'name': candidate['name'],
+            'email': candidate['email'],
+            'phone': candidate['phone'],
+            'company': candidate['company'],
+            'designation': candidate['designation']
+        }
+        
+        print(f"Processing document request for candidate: {candidate_data}")
+        
+        # Use AI agent to generate and send email
+        result = ai_agent.request_documents(candidate_data)
+        
+        print(f"AI Agent result: {result}")
+        
+        if result['success']:
+            # Log the request in database
+            cursor.execute('''
+                INSERT INTO document_requests (candidate_id, status, email_body)
+                VALUES (%s, 'sent', %s)
+            ''', (candidate_id, result['email_body']))
+            
+            # Update candidate status to Pending (Documents Requested)
+            cursor.execute('''
+                UPDATE candidates 
+                SET extraction_status = 'Pending'
+                WHERE id = %s
+            ''', (candidate_id,))
+            
+            conn.commit()
+        
+        if conn:
+            conn.close()
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"Error in request_documents: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        if conn:
+            conn.close()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to process document request'
+        }), 500
 
 @app.route('/api/candidates/<int:candidate_id>/submit-documents', methods=['POST'])
 def submit_documents(candidate_id):
