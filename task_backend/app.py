@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template_string, render_template
 from flask_cors import CORS
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -17,9 +18,17 @@ ai_agent = AIDocumentAgent()
 doc_verifier = DocumentVerifier()
 
 # Configuration
-UPLOAD_FOLDER = 'uploads'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx'}
-DATABASE = 'candidates.db'
+
+# PostgreSQL Configuration
+# Note: @ symbol in password needs to be URL-encoded as %40
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://abhinav:TFqaygjsCxnJQnsbHyUa7HORAqfZW5Vc@dpg-d4l794uuk2gs7387nm70-a.oregon-postgres.render.com:5432/candidates_73dd')
+
+# Fix for Render.com PostgreSQL URL (postgres:// -> postgresql://)
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -29,12 +38,36 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize database
 def init_db():
-    conn = sqlite3.connect(DATABASE)
+    # First, try to create the database if it doesn't exist
+    try:
+        # Connect to postgres database to create candidates_db
+        temp_url = DATABASE_URL.rsplit('/', 1)[0] + '/postgres'
+        temp_conn = psycopg2.connect(temp_url)
+        temp_conn.autocommit = True
+        temp_cursor = temp_conn.cursor()
+        
+        # Check if database exists
+        temp_cursor.execute("SELECT 1 FROM pg_database WHERE datname='candidates_db'")
+        exists = temp_cursor.fetchone()
+        
+        if not exists:
+            temp_cursor.execute("CREATE DATABASE candidates_db")
+            print("✓ Database 'candidates_db' created")
+        else:
+            print("✓ Database 'candidates_db' already exists")
+        
+        temp_cursor.close()
+        temp_conn.close()
+    except Exception as e:
+        print(f"Note: Could not create database automatically: {e}")
+    
+    # Now connect to the actual database
+    conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS candidates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             email TEXT,
             phone TEXT,
@@ -48,77 +81,72 @@ def init_db():
             upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             resume_filename TEXT,
             upload_attempts INTEGER DEFAULT 0,
-            documents_submitted BOOLEAN DEFAULT 0
+            documents_submitted BOOLEAN DEFAULT FALSE
         )
     ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS candidate_skills (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            candidate_id INTEGER,
-            skill TEXT,
-            FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+            id SERIAL PRIMARY KEY,
+            candidate_id INTEGER REFERENCES candidates(id),
+            skill TEXT
         )
     ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS confidence_scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            candidate_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            candidate_id INTEGER REFERENCES candidates(id),
             field_name TEXT,
-            confidence REAL,
-            FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+            confidence REAL
         )
     ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS documents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            candidate_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            candidate_id INTEGER REFERENCES candidates(id),
             document_name TEXT,
             document_type TEXT,
             file_size INTEGER,
             upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            file_path TEXT,
-            FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+            file_path TEXT
         )
     ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS document_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            candidate_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            candidate_id INTEGER REFERENCES candidates(id),
             request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             status TEXT DEFAULT 'sent',
-            email_body TEXT,
-            FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+            email_body TEXT
         )
     ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS submitted_documents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            candidate_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            candidate_id INTEGER REFERENCES candidates(id),
             document_type TEXT,
             file_path TEXT,
             submission_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             verification_status TEXT DEFAULT 'Pending',
             extracted_name TEXT,
             similarity_score REAL,
-            verification_reason TEXT,
-            FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+            verification_reason TEXT
         )
     ''')
     
     conn.commit()
     conn.close()
+    print(f"✓ Database tables created/verified")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 @app.route('/api/candidates/upload', methods=['POST'])
@@ -173,7 +201,8 @@ def upload_resume():
         cursor.execute('''
             INSERT INTO candidates 
             (name, email, phone, company, designation, location, experience, degree, university, extraction_status, resume_filename)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         ''', (
             extracted_data['name'],
             extracted_data['email'],
@@ -188,23 +217,23 @@ def upload_resume():
             filename
         ))
         
-        candidate_id = cursor.lastrowid
+        candidate_id = cursor.fetchone()[0]
         print(f"Candidate created with ID: {candidate_id}")
         
         # Store skills
         for skill in extracted_data.get('skills', []):
-            cursor.execute('INSERT INTO candidate_skills (candidate_id, skill) VALUES (?, ?)',
+            cursor.execute('INSERT INTO candidate_skills (candidate_id, skill) VALUES (%s, %s)',
                          (candidate_id, skill))
         
         # Store confidence scores
         for field_name, confidence in extracted_data.get('confidence', {}).items():
-            cursor.execute('INSERT INTO confidence_scores (candidate_id, field_name, confidence) VALUES (?, ?, ?)',
+            cursor.execute('INSERT INTO confidence_scores (candidate_id, field_name, confidence) VALUES (%s, %s, %s)',
                          (candidate_id, field_name, confidence))
         
         # Store document record
         cursor.execute('''
             INSERT INTO documents (candidate_id, document_name, document_type, file_size, file_path)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
         ''', (candidate_id, file.filename, file.content_type, os.path.getsize(filepath), filepath))
         
         conn.commit()
@@ -234,7 +263,7 @@ def upload_resume():
 def get_candidates():
     """List all candidates"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     cursor.execute('''
         SELECT id, name, email, phone, company, designation, extraction_status, upload_date
@@ -262,10 +291,10 @@ def get_candidates():
 def get_candidate(candidate_id):
     """Show parsed profile with extracted data"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     # Get candidate details
-    cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
     candidate_row = cursor.fetchone()
     
     if not candidate_row:
@@ -273,15 +302,15 @@ def get_candidate(candidate_id):
         return jsonify({'error': 'Candidate not found'}), 404
     
     # Get skills
-    cursor.execute('SELECT skill FROM candidate_skills WHERE candidate_id = ?', (candidate_id,))
+    cursor.execute('SELECT skill FROM candidate_skills WHERE candidate_id = %s', (candidate_id,))
     skills = [row['skill'] for row in cursor.fetchall()]
     
     # Get confidence scores
-    cursor.execute('SELECT field_name, confidence FROM confidence_scores WHERE candidate_id = ?', (candidate_id,))
+    cursor.execute('SELECT field_name, confidence FROM confidence_scores WHERE candidate_id = %s', (candidate_id,))
     confidence = {row['field_name']: row['confidence'] for row in cursor.fetchall()}
     
     # Get documents
-    cursor.execute('SELECT id, document_name, document_type, file_size, upload_date FROM documents WHERE candidate_id = ?', (candidate_id,))
+    cursor.execute('SELECT id, document_name, document_type, file_size, upload_date FROM documents WHERE candidate_id = %s', (candidate_id,))
     documents = []
     for row in cursor.fetchall():
         documents.append({
@@ -313,7 +342,7 @@ def get_candidate(candidate_id):
         SELECT id, document_type, file_path, submission_date, 
                verification_status, extracted_name, similarity_score, verification_reason 
         FROM submitted_documents 
-        WHERE candidate_id = ?
+        WHERE candidate_id = %s
     ''', (candidate_id,))
     for row in cursor.fetchall():
         file_path = row['file_path']
@@ -374,10 +403,10 @@ def get_candidate(candidate_id):
 def request_documents(candidate_id):
     """AI agent generates and sends personalized document request"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     # Get candidate details
-    cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
     candidate = cursor.fetchone()
     
     if not candidate:
@@ -401,14 +430,14 @@ def request_documents(candidate_id):
         # Log the request in database
         cursor.execute('''
             INSERT INTO document_requests (candidate_id, status, email_body)
-            VALUES (?, 'sent', ?)
+            VALUES (%s, 'sent', %s)
         ''', (candidate_id, result['email_body']))
         
         # Update candidate status to Pending (Documents Requested)
         cursor.execute('''
             UPDATE candidates 
             SET extraction_status = 'Pending'
-            WHERE id = ?
+            WHERE id = %s
         ''', (candidate_id,))
         
         conn.commit()
@@ -452,10 +481,10 @@ def submit_documents(candidate_id):
         return jsonify({'error': 'No valid files provided'}), 400
     
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     # Check if candidate exists and get candidate name
-    cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
     candidate = cursor.fetchone()
     
     if not candidate:
@@ -555,7 +584,7 @@ def submit_documents(candidate_id):
         cursor.execute('''
             INSERT INTO submitted_documents 
             (candidate_id, document_type, file_path, verification_status, extracted_name, similarity_score, verification_reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (
             candidate_id, 
             doc_type, 
@@ -582,12 +611,12 @@ def submit_documents(candidate_id):
         cursor.execute('''
             UPDATE candidates 
             SET upload_attempts = upload_attempts + 1
-            WHERE id = ?
+            WHERE id = %s
         ''', (candidate_id,))
         conn.commit()
         
         # Get updated attempts count
-        cursor.execute('SELECT upload_attempts FROM candidates WHERE id = ?', (candidate_id,))
+        cursor.execute('SELECT upload_attempts FROM candidates WHERE id = %s', (candidate_id,))
         current_attempts = cursor.fetchone()['upload_attempts']
         
         conn.close()
@@ -609,12 +638,12 @@ def submit_documents(candidate_id):
         cursor.execute('''
             UPDATE candidates 
             SET upload_attempts = upload_attempts + 1
-            WHERE id = ?
+            WHERE id = %s
         ''', (candidate_id,))
         conn.commit()
         
         # Get updated attempts count
-        cursor.execute('SELECT upload_attempts FROM candidates WHERE id = ?', (candidate_id,))
+        cursor.execute('SELECT upload_attempts FROM candidates WHERE id = %s', (candidate_id,))
         current_attempts = cursor.fetchone()['upload_attempts']
         
         conn.close()
@@ -642,8 +671,8 @@ def submit_documents(candidate_id):
     # Mark documents as successfully submitted
     cursor.execute('''
         UPDATE candidates 
-        SET extraction_status = ?, documents_submitted = 1
-        WHERE id = ?
+        SET extraction_status = %s, documents_submitted = TRUE
+        WHERE id = %s
     ''', (extraction_status, candidate_id))
     
     conn.commit()
@@ -660,14 +689,14 @@ def submit_documents(candidate_id):
 def debug_documents(candidate_id):
     """Debug endpoint to check what documents exist"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     # Get all documents from documents table
-    cursor.execute('SELECT * FROM documents WHERE candidate_id = ?', (candidate_id,))
+    cursor.execute('SELECT * FROM documents WHERE candidate_id = %s', (candidate_id,))
     resume_docs = [dict(row) for row in cursor.fetchall()]
     
     # Get all submitted documents
-    cursor.execute('SELECT * FROM submitted_documents WHERE candidate_id = ?', (candidate_id,))
+    cursor.execute('SELECT * FROM submitted_documents WHERE candidate_id = %s', (candidate_id,))
     submitted_docs = [dict(row) for row in cursor.fetchall()]
     
     conn.close()
@@ -683,9 +712,9 @@ def debug_documents(candidate_id):
 def upload_documents_page(candidate_id):
     """Serve document upload page for candidates"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
     candidate = cursor.fetchone()
     
     conn.close()
