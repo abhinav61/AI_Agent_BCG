@@ -11,14 +11,8 @@ from parsers.document_verifier import DocumentVerifier
 from ai_agent import AIDocumentAgent
 
 app = Flask(__name__)
-# Enable CORS for all origins (for production, you can restrict this)
-CORS(app, 
-     origins=["https://ai-agent-bcg-1-front.onrender.com", "http://localhost:5173", "http://localhost:3000"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "Accept"],
-     supports_credentials=True,
-     expose_headers=["Content-Type"]
-)
+# Enable CORS for all origins - allows any domain to access the API
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Initialize AI Agent and Document Verifier
 ai_agent = AIDocumentAgent()
